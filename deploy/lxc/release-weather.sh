@@ -26,7 +26,7 @@ python3 - "$ROUTES" <<'PY'
 from pathlib import Path
 import sys
 data = Path(sys.argv[1]).read_bytes()
-anchor = b"    app.include_router(speech_router)\\n"
+anchor = b"    app.include_router(speech_router)\n"
 if data.count(anchor) != 1:
     raise SystemExit("ABORTADO: marcador de rotas de voz ausente/duplicado; nao alterei arquivos.")
 if b"openjarvis.server.weather_routes" in data:
@@ -88,11 +88,11 @@ import os
 import sys
 p = Path(sys.argv[1])
 raw = p.read_bytes()
-anchor = b"    app.include_router(speech_router)\\n"
+anchor = b"    app.include_router(speech_router)\n"
 addition = (
-    b"    # Read-only forecast; authentication is inherited from the /v1 middleware.\\n"
-    b"    from openjarvis.server.weather_routes import router as weather_router\\n"
-    b"    app.include_router(weather_router)\\n"
+    b"    # Read-only forecast; authentication is inherited from the /v1 middleware.\n"
+    b"    from openjarvis.server.weather_routes import router as weather_router\n"
+    b"    app.include_router(weather_router)\n"
 )
 if raw.count(anchor) != 1 or b"openjarvis.server.weather_routes" in raw:
     raise SystemExit("ABORTADO: nao foi possivel validar uma insercao unica no backend.")
