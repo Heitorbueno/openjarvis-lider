@@ -147,3 +147,55 @@ ouve automaticamente o dispositivo remoto.
   ser feitos com a LXC no ar; o material nesta pasta não afirma deploy efetuado.
 
 Fonte do roteiro: https://posts.curtasolucoes.com.br/entregaveis/jarvis.html#prompt
+
+## LXC já existente (servidor crmlider)
+
+Quando a LXC **jarvis** já existe no servidor **crmlider**, **não use** `provision-host.sh` (ele cria outra LXC). Entre na LXC pelo host:
+
+```bash
+lxc exec jarvis -- bash
+```
+
+Verifique primeiro a rede, pois houve falha de acesso a `github.com:443` no host anterior. A rede do novo container deve ser testada separadamente:
+
+```bash
+getent ahostsv4 github.com | head -3
+ip -4 route
+curl -4 -IL --max-time 12 https://github.com
+curl -4 -IL --max-time 12 https://raw.githubusercontent.com
+```
+
+Somente se o HTTPS funcionar e o container for Ubuntu 24.04 limpo, instale o projeto **dentro** da LXC existente:
+
+```bash
+curl -4 -fLSs --retry 3 \
+  https://raw.githubusercontent.com/Heitorbueno/openjarvis-lider/main/deploy/lxc/bootstrap-guest.sh \
+  -o /root/bootstrap-openjarvis-lider.sh
+bash /root/bootstrap-openjarvis-lider.sh
+```
+
+O bootstrap usa o fork GitHub como código-fonte, compila o PWA, instala um Ollama próprio,
+cria `openjarvis-lider.service` e gera uma chave privada de API no guest.
+Ele **não** cria ou apaga containers e não instala Tailscale automaticamente.
+Não execute sobre LXC que tenha instalação ou dados do Jarvis antigo.
+
+Para configurar o acesso privado, ainda no guest:
+
+```bash
+curl -fsSL https://tailscale.com/install.sh | bash
+systemctl enable --now tailscaled
+tailscale up --hostname=jarvis-crmlider
+tailscale serve --bg http://127.0.0.1:8000
+tailscale serve status
+```
+
+Caso `/dev/net/tun` não exista no guest, volte ao host `crmlider` e adicione
+TUN apenas ao container `jarvis` (verifique antes se o device já existe):
+
+```bash
+lxc config device add jarvis tailscale-tun unix-char path=/dev/net/tun
+lxc restart jarvis
+lxc exec jarvis -- bash
+```
+
+O acesso permanece privado à Tailnet; **não** usar Funnel.
