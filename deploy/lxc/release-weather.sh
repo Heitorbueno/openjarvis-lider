@@ -19,9 +19,21 @@ systemctl is-active --quiet openjarvis-lider
 test "$(curl -sS -m 10 -o /dev/null -w '%{http_code}' http://127.0.0.1:8000/v1/models)" = 401 || {
   echo 'Protecao por API key ausente. Implantacao recusada.' >&2; exit 1;
 }
-git -C "$ROOT" diff --exit-code -- src/openjarvis/server/api_routes.py >/dev/null || {
-  echo 'api_routes.py contem alteracoes locais: preservando e abortando.' >&2; exit 1;
-}
+# Some OpenJarvis installations are packaged as source trees without .git.
+# Verify the exact insertion point instead of assuming a working tree exists.
+# Do not replace api_routes.py wholesale: preserve every pre-existing route.
+python3 - "$ROUTES" <<'PY'
+from pathlib import Path
+import sys
+data = Path(sys.argv[1]).read_bytes()
+anchor = b"    app.include_router(speech_router)\\n"
+if data.count(anchor) != 1:
+    raise SystemExit("ABORTADO: marcador de rotas de voz ausente/duplicado; nao alterei arquivos.")
+if b"openjarvis.server.weather_routes" in data:
+    raise SystemExit("ABORTADO: o endpoint de clima ja esta registrado; verificar antes de atualizar.")
+print("Rota de voz localizada uma vez; as demais rotas serao preservadas.")
+PY
+echo "BLOB_API_ROUTES_ATUAL=$(git hash-object "$ROUTES")"
 if [[ -e "$WEATHER" ]]; then
   echo 'weather_routes.py ja existe. Implantacao recusada para evitar sobrescrita.' >&2; exit 1
 fi
@@ -68,7 +80,29 @@ cp -a "$ROUTES" "$ROUTES_OLD"
 DEPLOYED=1
 echo '===== IMPLANTACAO COM ROLLBACK ====='
 cp "$RELEASE/src/openjarvis/server/weather_routes.py" "$WEATHER"
-cp "$RELEASE/src/openjarvis/server/api_routes.py" "$ROUTES"
+# Surgical additive registration, preserving original backend modifications.
+python3 - "$ROUTES" <<'PY'
+from pathlib import Path
+from tempfile import NamedTemporaryFile
+import os
+import sys
+p = Path(sys.argv[1])
+raw = p.read_bytes()
+anchor = b"    app.include_router(speech_router)\\n"
+addition = (
+    b"    # Read-only forecast; authentication is inherited from the /v1 middleware.\\n"
+    b"    from openjarvis.server.weather_routes import router as weather_router\\n"
+    b"    app.include_router(weather_router)\\n"
+)
+if raw.count(anchor) != 1 or b"openjarvis.server.weather_routes" in raw:
+    raise SystemExit("ABORTADO: nao foi possivel validar uma insercao unica no backend.")
+with NamedTemporaryFile(mode="wb", dir=p.parent, prefix=".api_routes-weather-", delete=False) as tmp:
+    tmp.write(raw.replace(anchor, anchor + addition, 1))
+    temp_path = tmp.name
+os.chmod(temp_path, p.stat().st_mode & 0o777)
+os.replace(temp_path, p)
+print("Backend atualizado com registro aditivo da rota; nenhuma outra rota substituida.")
+PY
 chown openjarvis:openjarvis "$WEATHER" "$ROUTES"
 mv "$ACTIVE" "$STATIC_OLD"
 mv "$STATIC_NEXT" "$ACTIVE"
