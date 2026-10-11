@@ -28,7 +28,8 @@ export async function speakCompletedReply(
   const voice = useTtsStore.getState();
   if (voice.available !== true || voice.autoSpokenId === messageId || !shouldSpeak()) return false;
 
-  const latest = useAppStore.getState().messages.at(-1);
+  const currentMessages = useAppStore.getState().messages;
+  const latest = currentMessages[currentMessages.length - 1];
   const content = stripThinkTags(latest?.content || '').trim();
   if (!content || /^(Error:|No response was generated|Erro:)/i.test(content)) return false;
 
