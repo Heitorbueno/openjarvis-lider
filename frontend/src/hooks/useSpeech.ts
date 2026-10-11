@@ -3,7 +3,7 @@ import { transcribeAudio, fetchSpeechHealth } from '../lib/api';
 
 export type SpeechState = 'idle' | 'recording' | 'transcribing';
 
-export function useSpeech() {
+export function useSpeech(locale: 'pt-BR' | 'en-US' = 'pt-BR') {
   const [state, setState] = useState<SpeechState>('idle');
   const [error, setError] = useState<string | null>(null);
   const [available, setAvailable] = useState(false);
@@ -21,7 +21,7 @@ export function useSpeech() {
   const startRecording = useCallback(async (): Promise<void> => {
     setError(null);
 
-    if (!navigator.mediaDevices?.getUserMedia) {
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
       setError('Microphone not supported in this browser');
       return;
     }
@@ -61,11 +61,16 @@ export function useSpeech() {
         streamRef.current?.getTracks().forEach((track) => track.stop());
         streamRef.current = null;
 
-        const blob = new Blob(chunksRef.current, { type: recorder.mimeType || 'audio/webm' });
+        const format = recorder.mimeType || 'audio/webm';
+        const blob = new Blob(chunksRef.current, { type: format });
+        // Safari commonly records MP4, Chrome WebM; backend infers container from filename.
+        const filename = /mp4|m4a/i.test(format) ? 'recording.m4a'
+          : /ogg/i.test(format) ? 'recording.ogg'
+          : /wav/i.test(format) ? 'recording.wav' : 'recording.webm';
         chunksRef.current = [];
 
         try {
-          const result = await transcribeAudio(blob);
+          const result = await transcribeAudio(blob, filename, locale === 'pt-BR' ? 'pt' : 'en');
           setState('idle');
           resolve(result.text);
         } catch (err) {
@@ -78,6 +83,16 @@ export function useSpeech() {
 
       recorder.stop();
     });
+  }, [locale]);
+
+  useEffect(() => () => {
+    // Leaving immersive mode or navigating away must always release the microphone.
+    if (mediaRecorderRef.current?.state === 'recording') {
+      mediaRecorderRef.current.onstop = null;
+      mediaRecorderRef.current.stop();
+    }
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
   }, []);
 
   return {
