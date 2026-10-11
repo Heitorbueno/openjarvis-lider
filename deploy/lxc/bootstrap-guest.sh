@@ -5,7 +5,7 @@ set -Eeuo pipefail
 trap 'echo "[ERRO] Linha $LINENO: instalacao interrompida, sem apagar dados." >&2' ERR
 
 if (( EUID != 0 )); then echo "Execute como root na LXC dedicada." >&2; exit 1; fi
-MODEL="${MODEL:-gemma4:e2b-it-q4_K_M}"
+MODEL="${MODEL:-qwen3.5:2b}"
 if [[ ! "$MODEL" =~ ^[a-zA-Z0-9._:-]+$ ]]; then echo "MODEL invalido" >&2; exit 1; fi
 export DEBIAN_FRONTEND=noninteractive
 
