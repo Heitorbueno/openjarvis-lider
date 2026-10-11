@@ -5,9 +5,11 @@ import { Sidebar } from './Sidebar/Sidebar';
 import { SystemPulse } from './SystemPulse';
 import { useAppStore } from '../lib/store';
 import { checkHealth } from '../lib/api';
+import { t } from '../lib/i18n';
 
 export function Layout() {
   const sidebarOpen = useAppStore((s) => s.sidebarOpen);
+  const language = useAppStore((s) => s.settings.language);
   const [apiReachable, setApiReachable] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -44,13 +46,13 @@ export function Layout() {
             className="w-1.5 h-1.5 rounded-full shrink-0"
             style={{ background: 'var(--color-error)' }}
           />
-          <span>Cannot reach OpenJarvis backend</span>
+          <span>{t(language, "backendOffline")}</span>
           <button
             onClick={() => navigate('/settings')}
             className="text-sm underline cursor-pointer ml-auto shrink-0"
             style={{ color: 'var(--color-accent)' }}
           >
-            Change URL
+            {t(language, "changeUrl")}
           </button>
         </div>
       )}
