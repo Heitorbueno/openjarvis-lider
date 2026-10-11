@@ -16,7 +16,7 @@ if [[ "$ID" != "ubuntu" || ! "$VERSION_ID" =~ ^(22[.]04|24[.]04)$ ]]; then
   echo "Ubuntu 22.04 ou 24.04 necessario; detectado: $PRETTY_NAME" >&2
   exit 1
 fi
-MODEL="${MODEL:-qwen3.5:2b}"
+MODEL="${MODEL:-qwen3.5:2b-q4_K_M}"
 if [[ ! "$MODEL" =~ ^[a-zA-Z0-9._:-]+$ ]]; then echo "MODEL invalido" >&2; exit 1; fi
 export DEBIAN_FRONTEND=noninteractive
 
