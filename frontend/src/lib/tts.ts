@@ -12,6 +12,8 @@ export type TtsState = 'idle' | 'loading' | 'speaking';
  */
 interface TtsStore {
   state: TtsState;
+  /** Real audio amplitude sampled by Web Audio; 0..1. */
+  audioLevel: number;
   /** id of the message currently loading or speaking, if any. */
   speakingId: string | null;
   error: string | null;
@@ -34,6 +36,46 @@ let objectUrl: string | null = null;
 let controller: AbortController | null = null;
 let token = 0;
 let healthProbe: Promise<void> | null = null;
+let analyserContext: AudioContext | null = null;
+let visualFrame: number | null = null;
+let levelStartedAt = 0;
+
+function attachAudioVisualizer(el: HTMLAudioElement, mine: number): void {
+  // Graceful degradation when Web Audio is unavailable or blocked by the browser.
+  if (typeof AudioContext === 'undefined') return;
+  try {
+    const context = new AudioContext();
+    analyserContext = context;
+    const source = context.createMediaElementSource(el);
+    const analyser = context.createAnalyser();
+    analyser.fftSize = 512;
+    analyser.smoothingTimeConstant = 0.68;
+    source.connect(analyser);
+    analyser.connect(context.destination); // Keep audio audible; do not bypass the speakers.
+    const samples = new Uint8Array(analyser.fftSize);
+    levelStartedAt = 0;
+    const measure = (now: number) => {
+      if (mine !== token || !analyserContext || audio !== el) return;
+      visualFrame = requestAnimationFrame(measure);
+      if (now - levelStartedAt < 65) return;
+      levelStartedAt = now;
+      analyser.getByteTimeDomainData(samples);
+      let power = 0;
+      for (let i = 0; i < samples.length; i++) {
+        const sample = (samples[i] - 128) / 128;
+        power += sample * sample;
+      }
+      const rms = Math.sqrt(power / samples.length);
+      useTtsStore.setState({ audioLevel: Math.min(1, rms * 4.2) });
+    };
+    visualFrame = requestAnimationFrame(measure);
+    void context.resume().catch(() => {});
+  } catch {
+    // Visualization is optional; synthesis/playback must continue independently.
+    if (analyserContext) { void analyserContext.close().catch(() => {}); analyserContext = null; }
+  }
+}
+
 
 /** Only a stream ending in the active conversation may trigger autoplay. */
 export function shouldAutoplayFinishedReply(
@@ -52,6 +94,9 @@ export function shouldAutoplayFinishedReply(
 }
 
 function teardown(): void {
+  if (visualFrame !== null) { cancelAnimationFrame(visualFrame); visualFrame = null; }
+  if (analyserContext) { void analyserContext.close().catch(() => {}); analyserContext = null; }
+  useTtsStore.setState({ audioLevel: 0 });
   if (audio) {
     // Detach first: clearing src re-runs the media load algorithm, which fails
     // on an empty source and dispatches an `error` event. With the handler
@@ -75,6 +120,7 @@ function teardown(): void {
 
 export const useTtsStore = create<TtsStore>((set, get) => ({
   state: 'idle',
+  audioLevel: 0,
   speakingId: null,
   error: null,
   errorId: null,
@@ -119,6 +165,7 @@ export const useTtsStore = create<TtsStore>((set, get) => ({
       objectUrl = url;
       const el = new Audio(url);
       audio = el;
+      attachAudioVisualizer(el, mine);
 
       el.onended = () => {
         if (mine !== token) return;
@@ -160,6 +207,7 @@ export function __resetTtsForTests(): void {
   healthProbe = null;
   useTtsStore.setState({
     state: 'idle',
+    audioLevel: 0,
     speakingId: null,
     error: null,
     errorId: null,
