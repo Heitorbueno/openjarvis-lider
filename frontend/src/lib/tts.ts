@@ -37,14 +37,34 @@ let controller: AbortController | null = null;
 let token = 0;
 let healthProbe: Promise<void> | null = null;
 let analyserContext: AudioContext | null = null;
+let primedContext: AudioContext | null = null;
 let visualFrame: number | null = null;
+
+/** Call synchronously from the user's click/touch to unlock browser audio. */
+export function unlockVoicePlayback(): void {
+  if (typeof AudioContext === 'undefined') return;
+  try {
+    if (!primedContext || primedContext.state === 'closed') {
+      primedContext = new AudioContext();
+    }
+    void primedContext.resume().catch(() => {});
+  } catch { /* Browser may restrict audio; normal player still works. */ }
+}
 let levelStartedAt = 0;
 
 function attachAudioVisualizer(el: HTMLAudioElement, mine: number): void {
   // Graceful degradation when Web Audio is unavailable or blocked by the browser.
   if (typeof AudioContext === 'undefined') return;
   try {
-    const context = new AudioContext();
+    const context = primedContext ?? new AudioContext();
+    primedContext = null;
+    // Never route an audible HTMLAudioElement into a suspended context:
+    // on iOS this silently mutes it even if el.play() succeeded.
+    if (context.state !== 'running') {
+      void context.resume().catch(() => {});
+      void context.close().catch(() => {});
+      return;
+    }
     analyserContext = context;
     const source = context.createMediaElementSource(el);
     const analyser = context.createAnalyser();
@@ -165,7 +185,6 @@ export const useTtsStore = create<TtsStore>((set, get) => ({
       objectUrl = url;
       const el = new Audio(url);
       audio = el;
-      attachAudioVisualizer(el, mine);
 
       el.onended = () => {
         if (mine !== token) return;
@@ -179,7 +198,12 @@ export const useTtsStore = create<TtsStore>((set, get) => ({
       };
 
       await el.play();
-      if (mine === token) set({ state: 'speaking', speakingId: id });
+      // Only attach optional analysis after native playback has started.
+      // When Web Audio is blocked, audio stays on the native player.
+      if (mine === token) {
+        attachAudioVisualizer(el, mine);
+        set({ state: 'speaking', speakingId: id });
+      }
     } catch (err) {
       if (mine !== token) return;
       if (err instanceof DOMException && err.name === 'AbortError') return;
