@@ -1306,6 +1306,9 @@ def include_all_routes(app) -> None:
     app.include_router(websocket_router)
     app.include_router(learning_router)
     app.include_router(speech_router)
+    # Read-only forecast endpoint; protected by the existing /v1 API-key middleware.
+    from openjarvis.server.weather_routes import router as weather_router
+    app.include_router(weather_router)
     app.include_router(feedback_router)
     app.include_router(optimize_router)
 
