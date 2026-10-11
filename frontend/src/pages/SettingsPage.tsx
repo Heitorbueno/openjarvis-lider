@@ -18,7 +18,10 @@ import {
   Brain,
   RefreshCw,
 } from 'lucide-react';
-import { useAppStore, type ThemeMode } from '../lib/store';
+import { useAppStore, type ThemeMode, type JarvisSkin } from '../lib/store';
+import { useNavigate } from 'react-router';
+import { AssistantSkin } from '../components/Chat/AssistantSkin';
+import { useTtsStore } from '../lib/tts';
 import { t } from '../lib/i18n';
 import {
   checkHealth,
@@ -287,6 +290,10 @@ const themeOptions: { value: ThemeMode; label: string; icon: typeof Sun }[] = [
 ];
 
 export function SettingsPage() {
+  const navigate = useNavigate();
+  const testVoice = useTtsStore((s) => s.speak);
+  const voiceStatus = useTtsStore((s) => s.state);
+  const voiceError = useTtsStore((s) => s.error);
   const settings = useAppStore((s) => s.settings);
   const updateSettings = useAppStore((s) => s.updateSettings);
   const conversations = useAppStore((s) => s.conversations);
@@ -516,6 +523,48 @@ export function SettingsPage() {
                 <option value="default">{t(settings.language, "normal")}</option>
                 <option value="large">{t(settings.language, "large")}</option>
               </select>
+            </SettingRow>
+            <SettingRow label={settings.language === 'pt-BR' ? 'Skin / Skill (interface 3D)' : 'Skin / Skill (3D interface)'} description={settings.language === 'pt-BR' ? 'Selecione um visual para abrir o modo imersivo, sem painéis laterais.' : 'Choose a theme to open immersive mode without sidebars.'}>
+              <div className="w-full">
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  {([
+                    { id: 'orbital', name: 'Orbital Core' },
+                    { id: 'nebula', name: 'Nebula Core' },
+                    { id: 'avatar', name: 'Avatar Holográfico' },
+                    { id: 'cloud', name: 'Cloud Voice' },
+                  ] as Array<{ id: JarvisSkin; name: string }>).map((skin) => (
+                    <button
+                      key={skin.id}
+                      type="button"
+                      onClick={() => {
+                        updateSettings({
+                          jarvisSkin: skin.id, immersiveMode: true, uiEffects3d: true,
+                          speechEnabled: true, voiceOutputEnabled: true, voiceAutoplay: true,
+                        });
+                        showSaved();
+                        navigate('/');
+                      }}
+                      aria-pressed={settings.immersiveMode && settings.jarvisSkin === skin.id}
+                      className="overflow-hidden rounded-xl text-center transition-all cursor-pointer"
+                      style={{
+                        border: settings.immersiveMode && settings.jarvisSkin === skin.id
+                          ? '2px solid #2cddff' : '1px solid var(--color-border)',
+                        background: '#03121d',
+                        color: '#d5faff',
+                      }}
+                    >
+                      <AssistantSkin skin={skin.id} preview />
+                      <span className="block text-xs py-2 px-1">{skin.name}</span>
+                    </button>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => { updateSettings({ immersiveMode: false }); showSaved(); navigate('/'); }}
+                  className="mt-3 px-3 py-2 text-xs rounded-lg cursor-pointer"
+                  style={{ border: '1px solid var(--color-border)', color: 'var(--color-text)', background: 'var(--color-bg-secondary)' }}
+                >{settings.language === 'pt-BR' ? 'Usar interface clássica com menus' : 'Use classic interface with sidebars'}</button>
+              </div>
             </SettingRow>
           </Section>
 
@@ -902,6 +951,19 @@ export function SettingsPage() {
                 See the <a href="https://open-jarvis.github.io/OpenJarvis/user-guide/tools/" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--color-accent)' }}>documentation</a> for details.
               </div>
             )}
+            <div className="flex flex-wrap gap-2 items-center mt-3 text-sm">
+              <button type="button" disabled={voiceStatus === 'loading'} onClick={() => {
+                void testVoice('__voice-test__', settings.language === 'pt-BR'
+                  ? 'Olá! Sou o Jarvis Líder. Estou respondendo em português do Brasil.'
+                  : 'Hello! I am Jarvis Leader. This is the audio playback test.');
+              }} className="px-3 py-2 rounded-lg cursor-pointer disabled:opacity-50"
+              style={{ background: 'var(--color-accent)', color: 'var(--color-on-accent)' }}>
+                {settings.language === 'pt-BR' ? 'Testar voz agora' : 'Test voice now'}
+              </button>
+              <span aria-live="polite" style={{ color: 'var(--color-text-secondary)' }}>
+                {voiceStatus === 'loading' ? 'Sintetizando...' : voiceStatus === 'speaking' ? 'Reproduzindo...' : voiceError ?? ''}
+              </span>
+            </div>
           </Section>
 
           {/* Data */}
