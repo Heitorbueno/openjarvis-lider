@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { Send, Square, Paperclip, Search, Keyboard, Settings2, PanelLeftOpen, Mic, Volume2 } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import { AssistantSkin } from './AssistantSkin';
+import './immersive.css';
 import { useTtsStore, shouldAutoplayFinishedReply } from '../../lib/tts';
 import { stripThinkTags } from '../../lib/message-text';
 import { toast } from 'sonner';
