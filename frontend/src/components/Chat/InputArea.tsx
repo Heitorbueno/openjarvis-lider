@@ -239,7 +239,7 @@ export function InputArea({ immersive = false }: { immersive?: boolean } = {}) {
       {
         role: 'system',
         content: uiLanguage === 'pt-BR'
-          ? 'Responda sempre em português brasileiro (pt-BR), de maneira natural. Não traduza a pergunta para outro idioma. Se precisar de informação atual e não houver ferramenta confiável, admita isso sem inventar dados. __IMMERSIVE__'
+          ? 'Responda sempre em português brasileiro (pt-BR), de maneira natural. Não traduza a pergunta para outro idioma. Se precisar de informação atual e não houver ferramenta confiável, admita isso sem inventar dados.' + (immersive ? ' Em conversação por voz, responda objetivamente em até três frases, salvo quando o usuário pedir detalhes.' : '')
           : 'Answer in English (en-US). Do not switch languages without user request. Never invent live data when no current source is available.',
       },
       ...dialog,
