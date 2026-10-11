@@ -11,7 +11,7 @@ RELEASE_SHA="${RELEASE_SHA:-}"
 [[ "$RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]] || {
   echo 'Informe RELEASE_SHA=SHA_COMPLETO do commit validado no GitHub CI.' >&2; exit 1;
 }
-BRANCH='feat/ptbr-3d-and-lxc-security'
+BRANCH='fix/jarvis-ptbr-voice-e2e'
 ROOT='/opt/openjarvis'
 ACTIVE="$ROOT/src/openjarvis/server/static"
 test -d "$ACTIVE"
