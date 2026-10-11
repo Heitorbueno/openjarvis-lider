@@ -17,6 +17,7 @@ import type {
 import type { ManagedAgent } from './api';
 import { isEmbedOnlyModel } from './model-capabilities';
 import { serializeToolCallArguments } from './tool-call';
+import type { AppLanguage } from './i18n';
 
 export interface CachedConnector {
   connector_id: string;
@@ -92,9 +93,14 @@ function saveConversations(store: ConversationStore): void {
 }
 
 export type ThemeMode = 'light' | 'dark' | 'system';
+export type JarvisSkin = 'orbital' | 'nebula' | 'avatar' | 'cloud';
 
 interface Settings {
   theme: ThemeMode;
+  language: AppLanguage;
+  uiEffects3d: boolean;
+  immersiveMode: boolean;
+  jarvisSkin: JarvisSkin;
   apiUrl: string;
   // Local server API key (OPENJARVIS_API_KEY). Sent as a Bearer token on
   // /v1 + /api requests so a key-protected `jarvis serve` doesn't 401 the
@@ -113,6 +119,10 @@ interface Settings {
 function loadSettings(): Settings {
   const defaults: Settings = {
     theme: 'system',
+    language: 'pt-BR',
+    uiEffects3d: true,
+    immersiveMode: false,
+    jarvisSkin: 'orbital',
     apiUrl: '',
     apiKey: '',
     fontSize: 'default',

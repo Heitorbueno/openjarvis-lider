@@ -1,13 +1,18 @@
 import { useEffect, useState } from 'react';
-import { Outlet, useNavigate } from 'react-router';
+import { Outlet, useNavigate, useLocation } from 'react-router';
 import { ApprovalBell } from './ApprovalBell';
 import { Sidebar } from './Sidebar/Sidebar';
 import { SystemPulse } from './SystemPulse';
 import { useAppStore } from '../lib/store';
 import { checkHealth } from '../lib/api';
+import { t } from '../lib/i18n';
 
 export function Layout() {
   const sidebarOpen = useAppStore((s) => s.sidebarOpen);
+  const language = useAppStore((s) => s.settings.language);
+  const immersiveMode = useAppStore((s) => s.settings.immersiveMode);
+  const location = useLocation();
+  const immersive = immersiveMode && location.pathname === '/';
   const [apiReachable, setApiReachable] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -27,8 +32,8 @@ export function Layout() {
   return (
     <div className="flex flex-col h-full w-full overflow-hidden relative" style={{ paddingTop: '3px' }}>
       <div className="hud-backdrop" aria-hidden="true" />
-      <SystemPulse apiReachable={apiReachable} />
-      <ApprovalBell />
+      {!immersive && <SystemPulse apiReachable={apiReachable} />}
+      {!immersive && <ApprovalBell />}
 
       {/* Health check banner */}
       {apiReachable === false && (
@@ -44,20 +49,20 @@ export function Layout() {
             className="w-1.5 h-1.5 rounded-full shrink-0"
             style={{ background: 'var(--color-error)' }}
           />
-          <span>Cannot reach OpenJarvis backend</span>
+          <span>{t(language, "backendOffline")}</span>
           <button
             onClick={() => navigate('/settings')}
             className="text-sm underline cursor-pointer ml-auto shrink-0"
             style={{ color: 'var(--color-accent)' }}
           >
-            Change URL
+            {t(language, "changeUrl")}
           </button>
         </div>
       )}
 
       <div className="flex flex-1 min-h-0 relative z-10">
-        <Sidebar />
-        {sidebarOpen && (
+        {!immersive && <Sidebar />}
+        {!immersive && sidebarOpen && (
           <div
             className="fixed inset-0 z-20 bg-black/40 md:hidden"
             onClick={() => useAppStore.getState().setSidebarOpen(false)}

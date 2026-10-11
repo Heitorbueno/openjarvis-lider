@@ -1,5 +1,10 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { Send, Square, Paperclip, Search } from 'lucide-react';
+import { Send, Square, Paperclip, Search, Keyboard, Settings2, PanelLeftOpen, Mic, Volume2 } from 'lucide-react';
+import { useNavigate } from 'react-router';
+import { AssistantSkin } from './AssistantSkin';
+import './immersive.css';
+import { useTtsStore, shouldAutoplayFinishedReply } from '../../lib/tts';
+import { stripThinkTags } from '../../lib/message-text';
 import { toast } from 'sonner';
 import { useAppStore, generateId } from '../../lib/store';
 import { streamChat, streamResearch } from '../../lib/sse';
@@ -12,6 +17,7 @@ import {
 } from '../../lib/chat-telemetry';
 import { MicButton } from './MicButton';
 import { useSpeech } from '../../hooks/useSpeech';
+import { t } from '../../lib/i18n';
 import type {
   ChatMessage,
   MessageTelemetry,
@@ -79,13 +85,25 @@ function useResearchCorpusSync(enabled: boolean): {
   return state;
 }
 
-export function InputArea() {
+export function InputArea({ immersive = false }: { immersive?: boolean } = {}) {
+  const navigate = useNavigate();
+  const [composerOpen, setComposerOpen] = useState(false);
+  const voiceSubmitPending = useRef(false);
+  const lastStreamingId = useRef<string | null>(null);
+  const ttsState = useTtsStore((s) => s.state);
+  const ttsError = useTtsStore((s) => s.error);
+  const ttsAvailable = useTtsStore((s) => s.available);
+  const voiceAutoplay = useAppStore((s) => s.settings.voiceAutoplay);
+  const voiceOutputEnabled = useAppStore((s) => s.settings.voiceOutputEnabled);
+  const jarvisSkin = useAppStore((s) => s.settings.jarvisSkin);
+  const updateSettings = useAppStore((s) => s.updateSettings);
   const [input, setInput] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const abortRef = useRef<AbortController | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const activeId = useAppStore((s) => s.activeId);
+  const language = useAppStore((s) => s.settings.language);
   const selectedModel = useAppStore((s) => s.selectedModel);
   const streamState = useAppStore((s) => s.streamState);
   const messages = useAppStore((s) => s.messages);
@@ -145,15 +163,23 @@ export function InputArea() {
       try {
         const text = await stopRecording();
         if (text) {
-          setInput((prev) => (prev ? prev + ' ' + text : text));
+          if (immersive) {
+            voiceSubmitPending.current = true;
+            setInput(text);
+          } else {
+            setInput((prev) => (prev ? prev + ' ' + text : text));
+          }
         }
       } catch {
         // Error is captured in useSpeech
       }
-    } else {
+    } else if (speechAvailable && speechEnabled) {
+      useTtsStore.getState().stop(); // Avoid feeding synthesized speech into microphone.
       await startRecording();
+    } else {
+      toast.error(language === 'pt-BR' ? 'Microfone indisponível. Verifique Voz em Configurações e o serviço Whisper.' : 'Microphone unavailable. Check Speech settings and Whisper backend.');
     }
-  }, [speechState, startRecording, stopRecording]);
+  }, [speechState, startRecording, stopRecording, immersive, speechAvailable, speechEnabled, language]);
 
   useEffect(() => {
     const el = textareaRef.current;
@@ -554,12 +580,132 @@ export function InputArea() {
     maxTokens,
   ]);
 
+  // Immersive mode reuses the existing authenticated SSE conversation pipeline.
+  // Speech transcription sets the same input state used by text entry, then
+  // dispatches it once React has rendered the new value.
+  useEffect(() => {
+    if (!immersive || !voiceSubmitPending.current || !input.trim()) return;
+    if (streamState.isStreaming) return;
+    voiceSubmitPending.current = false;
+    void sendMessage();
+  }, [immersive, input, sendMessage, streamState.isStreaming]);
+
+  // ChatArea normally owns TTS autoplay, but it is not mounted while immersive.
+  useEffect(() => {
+    if (!immersive) return;
+    const last = messages[messages.length - 1];
+    const tts = useTtsStore.getState();
+    const done = shouldAutoplayFinishedReply(
+      lastStreamingId.current, activeId, isCurrentChatStreaming,
+      last, tts.autoSpokenId,
+    );
+    lastStreamingId.current = isCurrentChatStreaming ? activeId : null;
+    if (!done || !voiceAutoplay || !voiceOutputEnabled || !last?.content) return;
+    const id = last.id;
+    const conv = activeId;
+    void tts.ensureHealth().then(() => {
+      const app = useAppStore.getState();
+      const current = useTtsStore.getState();
+      if (app.activeId !== conv || app.streamState.isStreaming || current.available !== true) return;
+      if (current.autoSpokenId === id || app.messages[app.messages.length - 1]?.id !== id) return;
+      const text = stripThinkTags(last.content);
+      if (!text || /^Error:|^No response was generated/i.test(text)) return;
+      current.markAutoSpoken(id);
+      void current.speak(id, text);
+    });
+  }, [immersive, messages, activeId, isCurrentChatStreaming, voiceAutoplay, voiceOutputEnabled]);
+
+  useEffect(() => {
+    if (immersive && voiceOutputEnabled) void useTtsStore.getState().ensureHealth();
+  }, [immersive, voiceOutputEnabled]);
+
+  const currentAssistant = [...messages].reverse().find((m) => m.role === 'assistant' && m.content.trim());
+  const visualStatus = speechState === 'recording' ? (language === 'pt-BR' ? 'Ouvindo — toque para enviar' : 'Listening — tap to send')
+    : speechState === 'transcribing' ? (language === 'pt-BR' ? 'Transcrevendo áudio...' : 'Transcribing audio...')
+    : ttsState === 'loading' ? (language === 'pt-BR' ? 'Preparando resposta falada...' : 'Preparing speech...')
+    : ttsState === 'speaking' ? (language === 'pt-BR' ? 'Respondendo em áudio' : 'Speaking response')
+    : isCurrentChatStreaming ? (language === 'pt-BR' ? 'Processando resposta...' : 'Processing response...')
+    : language === 'pt-BR' ? 'Toque no núcleo para falar' : 'Tap the core to speak';
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       sendMessage();
     }
   };
+
+  if (immersive) {
+    return (
+      <section className="jarvis-immersive" aria-label={language === 'pt-BR' ? 'Assistente por voz' : 'Voice assistant'}>
+        <header className="jarvis-immersive__header">
+          <div className="jarvis-immersive__brand"><span className="jarvis-immersive__badge" aria-hidden="true">◉</span><strong>Jarvis Líder</strong></div>
+          <div className="jarvis-immersive__actions">
+            <span className="jarvis-immersive__connection" title={selectedModel || ''}>● {language === 'pt-BR' ? 'Privado' : 'Private'}</span>
+            <button type="button" onClick={() => { updateSettings({ immersiveMode: false }); }} title={language === 'pt-BR' ? 'Abrir interface clássica' : 'Classic interface'} aria-label={language === 'pt-BR' ? 'Abrir interface clássica' : 'Classic interface'}><PanelLeftOpen size={18} /></button>
+            <button type="button" onClick={() => navigate('/settings')} title={t(language, 'navSettings')} aria-label={t(language, 'navSettings')}><Settings2 size={19} /></button>
+          </div>
+        </header>
+        <div className="jarvis-immersive__stage">
+          <button
+            type="button"
+            className="jarvis-immersive__skin-button"
+            aria-label={speechState === 'recording' ? (language === 'pt-BR' ? 'Encerrar gravação' : 'Stop recording') : (language === 'pt-BR' ? 'Iniciar gravação' : 'Start recording')}
+            onClick={() => { if (!isCurrentChatStreaming && speechState !== 'transcribing') void handleMicClick(); }}
+            disabled={isCurrentChatStreaming || speechState === 'transcribing'}
+          >
+            <AssistantSkin skin={jarvisSkin} />
+          </button>
+          <div className="jarvis-immersive__status" role="status" aria-live="polite">{visualStatus}</div>
+          <div className="jarvis-immersive__subtitle" aria-live="polite">
+            {isCurrentChatStreaming ? (streamState.content || streamState.phase || '...').slice(-240)
+              : currentAssistant ? stripThinkTags(currentAssistant.content).slice(0, 240)
+              : language === 'pt-BR' ? 'Sua inteligência artificial local e privada.' : 'Your local, private artificial intelligence.'}
+          </div>
+          {ttsError && <p className="jarvis-immersive__error" role="alert">{ttsError}</p>}
+          {!speechAvailable && <p className="jarvis-immersive__error">
+            {language === 'pt-BR' ? 'Reconhecimento de voz indisponível: verifique o Whisper em Configurações.' : 'Voice recognition unavailable: check Whisper in Settings.'}
+          </p>}
+          {ttsAvailable === false && <p className="jarvis-immersive__error">
+            {language === 'pt-BR' ? 'Voz de resposta indisponível: verifique o Kokoro.' : 'Speech synthesis unavailable: check Kokoro.'}
+          </p>}
+          <div className="jarvis-immersive__controls">
+            <button type="button" className="jarvis-immersive__small-btn" onClick={() => {
+              setComposerOpen((value) => !value);
+              requestAnimationFrame(() => textareaRef.current?.focus());
+            }} aria-label={language === 'pt-BR' ? 'Abrir campo de texto' : 'Open text input'} aria-expanded={composerOpen}><Keyboard size={21} /></button>
+            <button type="button" className={`jarvis-immersive__mic ${speechState === 'recording' ? 'jarvis-immersive__mic--on' : ''}`}
+              onClick={() => { if (!isCurrentChatStreaming && speechState !== 'transcribing') void handleMicClick(); }}
+              aria-label={speechState === 'recording' ? 'Finalizar fala' : 'Toque para falar'}
+              disabled={isCurrentChatStreaming || speechState === 'transcribing'}
+            ><Mic size={30}/></button>
+            <button type="button" className="jarvis-immersive__small-btn"
+              onClick={() => {
+                if (ttsState === 'speaking' || ttsState === 'loading') useTtsStore.getState().stop();
+                else if (currentAssistant) void useTtsStore.getState().speak(currentAssistant.id, stripThinkTags(currentAssistant.content));
+              }}
+              disabled={!currentAssistant}
+              aria-label={language === 'pt-BR' ? 'Ouvir resposta novamente ou parar' : 'Play or stop voice'}
+            ><Volume2 size={21}/></button>
+          </div>
+          {composerOpen && <div className="jarvis-immersive__composer">
+            <textarea ref={textareaRef} value={input} rows={2} onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              disabled={isCurrentChatStreaming || modelLoading}
+              placeholder={t(language, selectedModel ? 'messagePlaceholder' : 'pickModel')} />
+            {isCurrentChatStreaming ? <button type="button" onClick={stopStreaming} aria-label={t(language, 'stopGenerating')}><Square size={19} /></button> :
+              <button type="button" disabled={!input.trim() || modelLoading || !selectedModel}
+                onClick={() => { void sendMessage(); setComposerOpen(false); }}
+                aria-label={t(language, 'sendMessage')}><Send size={20} /></button>}
+          </div>}
+          <p className="jarvis-immersive__hint">
+            {speechState === 'recording'
+              ? (language === 'pt-BR' ? 'Toque novamente para transcrever e enviar' : 'Tap again to transcribe and send')
+              : (language === 'pt-BR' ? 'Toque para falar · teclado para escrever' : 'Tap to speak · keyboard to type')}
+          </p>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <div className="px-4 pb-4 pt-2" style={{ maxWidth: 'var(--chat-max-width)', margin: '0 auto', width: '100%' }}>
@@ -576,10 +722,10 @@ export function InputArea() {
               border: `1px solid ${deepResearch ? 'var(--color-accent)' : 'var(--color-border)'}`,
               color: deepResearch ? 'var(--color-accent)' : 'var(--color-text-tertiary)',
             }}
-            title={deepResearch ? 'Deep Research: on' : 'Deep Research: off'}
+            title={t(language, deepResearch ? 'researchOn' : 'researchOff')}
           >
             <Search size={12} />
-            Deep Research
+            {t(language, 'deepResearch')}
           </button>
         </div>
         {deepResearch && corpusSync.syncing && corpusSync.itemsSynced > 0 && (
@@ -608,7 +754,7 @@ export function InputArea() {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder={selectedModel ? 'Message OpenJarvis...' : 'Pick a model first (⌘K)...'}
+          placeholder={t(language, selectedModel ? 'messagePlaceholder' : 'pickModel')}
           rows={1}
           className="flex-1 bg-transparent outline-none resize-none text-sm leading-relaxed"
           style={{ color: 'var(--color-text)', maxHeight: '200px' }}
@@ -619,7 +765,7 @@ export function InputArea() {
             onClick={stopStreaming}
             className="p-2 rounded-xl transition-colors shrink-0 cursor-pointer"
             style={{ background: 'var(--color-error)', color: 'var(--color-on-accent)' }}
-            title="Stop generating"
+            title={t(language, "stopGenerating")}
           >
             <Square size={16} />
           </button>
@@ -634,7 +780,7 @@ export function InputArea() {
             <button
               onClick={sendMessage}
               disabled={streamState.isStreaming || !input.trim() || modelLoading || !selectedModel}
-              title={selectedModel ? 'Send message' : 'Pick a model first (⌘K)'}
+              title={t(language, selectedModel ? 'sendMessage' : 'pickModel')}
               className="p-2 rounded-xl transition-colors shrink-0 cursor-pointer disabled:opacity-30 disabled:cursor-default"
               style={{
                 background: input.trim() ? 'var(--color-accent)' : 'var(--color-bg-tertiary)',
