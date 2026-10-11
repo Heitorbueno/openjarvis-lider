@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 import { useAppStore, type ThemeMode, type JarvisSkin } from '../lib/store';
 import { AssistantSkin } from '../components/Chat/AssistantSkin';
-import { useTtsStore } from '../lib/tts';
+import { useTtsStore, unlockVoicePlayback } from '../lib/tts';
 import { t } from '../lib/i18n';
 import {
   checkHealth,
@@ -951,6 +951,7 @@ export function SettingsPage() {
             )}
             <div className="flex flex-wrap gap-2 items-center mt-3 text-sm">
               <button type="button" disabled={voiceStatus === 'loading'} onClick={() => {
+                unlockVoicePlayback();
                 void testVoice('__voice-test__', settings.language === 'pt-BR'
                   ? 'Olá! Sou o Jarvis Líder. Estou respondendo em português do Brasil.'
                   : 'Hello! I am Jarvis Leader. This is the audio playback test.');
