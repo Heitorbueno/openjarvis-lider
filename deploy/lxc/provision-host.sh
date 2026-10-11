@@ -3,7 +3,7 @@
 set -Eeuo pipefail
 trap 'echo "[ERRO] Linha $LINENO; a LXC existente nao sera removida automaticamente." >&2' ERR
 NAME="${NAME:-openjarvis-lider}"
-MODEL="${MODEL:-gemma4:e2b-it-q4_K_M}"
+MODEL="${MODEL:-qwen3.5:2b}"
 CPU="${CPU:-8}"
 MEMORY="${MEMORY:-16GiB}"
 BASE="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
