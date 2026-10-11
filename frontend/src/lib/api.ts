@@ -362,7 +362,11 @@ export interface SpeechHealth {
   reason?: string;
 }
 
-export async function transcribeAudio(audioBlob: Blob, filename = 'recording.webm'): Promise<TranscriptionResult> {
+export async function transcribeAudio(
+  audioBlob: Blob,
+  filename = 'recording.webm',
+  language: 'pt' | 'en' | undefined = 'pt',
+): Promise<TranscriptionResult> {
   if (isTauri()) {
     try {
       const buffer = await audioBlob.arrayBuffer();
@@ -377,6 +381,9 @@ export async function transcribeAudio(audioBlob: Blob, filename = 'recording.web
   }
   const formData = new FormData();
   formData.append('file', audioBlob, filename);
+  // Whisper auto-detect misclassified short Brazilian Portuguese utterances as Arabic/English.
+  // Send the explicit language supported by the backend instead of guessing.
+  if (language) formData.append('language', language);
   const res = await apiFetch(`/v1/speech/transcribe`, {
     method: 'POST',
     body: formData,
