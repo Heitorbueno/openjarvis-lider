@@ -754,3 +754,58 @@
   background: var(--color-accent);
   text-decoration: none;
 }
+
+/* Jarvis Líder: optional, low-cost CSS perspective orb. */
+.jarvis-orb-scene {
+  position: relative;
+  width: 136px;
+  height: 136px;
+  flex: none;
+  margin-bottom: 14px;
+  perspective: 500px;
+  transform-style: preserve-3d;
+  isolation: isolate;
+}
+.jarvis-orb-glow {
+  position: absolute;
+  inset: 9px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(32,180,237,.23) 0%, rgba(32,180,237,.07) 50%, transparent 72%);
+  filter: blur(8px);
+}
+.jarvis-orb-core {
+  position: absolute;
+  inset: 30px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 33% 27%, #d4ffff 0%, #77d4ff 17%, #167ea4 42%, #092d54 76%, #041525 100%);
+  box-shadow: inset -12px -14px 25px #02172aa8, inset 9px 9px 15px #ffffff29, 0 0 30px #1ab6ff70, 0 0 80px #1ab6ff18;
+  animation: jarvis-orb-pulse 5s ease-in-out infinite;
+}
+.jarvis-orb-ring {
+  position: absolute;
+  inset: 11px;
+  border: 2px solid rgba(96, 212, 250, .6);
+  border-radius: 50%;
+  transform-style: preserve-3d;
+  box-shadow: 0 0 9px #51d7ff42, inset 0 0 9px #51d7ff25;
+}
+.jarvis-orb-ring-a { transform: rotateX(72deg) rotateY(16deg); animation: jarvis-orb-spin-a 9s linear infinite; }
+.jarvis-orb-ring-b { transform: rotateY(72deg) rotateZ(32deg); animation: jarvis-orb-spin-b 11s linear infinite; border-color: rgba(80, 150, 245, .65); }
+.jarvis-orb-ring-c { inset: 20px; transform: rotateX(45deg) rotateY(-40deg); animation: jarvis-orb-spin-c 13s linear infinite; border-color: rgba(116, 242, 232, .35); }
+.jarvis-orb-dot {
+  position: absolute;
+  top: 27%;
+  left: 34%;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #d8ffff;
+  box-shadow: 0 0 14px #a9ffff;
+}
+@keyframes jarvis-orb-spin-a { to { transform: rotateX(72deg) rotateY(376deg); } }
+@keyframes jarvis-orb-spin-b { to { transform: rotateY(432deg) rotateZ(32deg); } }
+@keyframes jarvis-orb-spin-c { to { transform: rotateX(405deg) rotateY(-40deg); } }
+@keyframes jarvis-orb-pulse { 50% { filter: brightness(1.12); transform: scale(.96); } }
+@media (prefers-reduced-motion: reduce) {
+  .jarvis-orb-core, .jarvis-orb-ring { animation: none !important; }
+}
