@@ -5,6 +5,7 @@ import { AssistantSkin } from './AssistantSkin';
 import './immersive.css';
 import { useTtsStore, shouldAutoplayFinishedReply, unlockVoicePlayback } from '../../lib/tts';
 import { speakCompletedReply } from '../../lib/voice-autoplay';
+import { getTomorrowWeatherCity, getTomorrowForecast, describeTomorrowForecast } from '../../lib/weather-forecast';
 import { stripThinkTags } from '../../lib/message-text';
 import { toast } from 'sonner';
 import { useAppStore, generateId } from '../../lib/store';
@@ -292,7 +293,15 @@ export function InputArea({ immersive = false }: { immersive?: boolean } = {}) {
     });
 
     try {
-      if (deepResearch) {
+      // Deterministic weather skill: the 2B local model does not need to
+      // invent forecasts or call a tool via unreliable multi-step prompting.
+      const tomorrowCity = !deepResearch ? getTomorrowWeatherCity(content) : null;
+      if (tomorrowCity) {
+        setStreamState({ phase: 'Consultando Open-Meteo...' });
+        const forecast = await getTomorrowForecast(tomorrowCity, controller.signal);
+        accumulatedContent = describeTomorrowForecast(forecast, uiLanguage);
+        setStreamState({ phase: '', content: accumulatedContent });
+      } else if (deepResearch) {
         for await (const ev of streamResearch(
           content,
           selectedModel,
