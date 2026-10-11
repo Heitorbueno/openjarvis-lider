@@ -3,7 +3,7 @@ import { Send, Square, Paperclip, Search, Keyboard, Settings2, PanelLeftOpen, Mi
 import { useNavigate } from 'react-router';
 import { AssistantSkin } from './AssistantSkin';
 import './immersive.css';
-import { useTtsStore, shouldAutoplayFinishedReply } from '../../lib/tts';
+import { useTtsStore, shouldAutoplayFinishedReply, unlockVoicePlayback } from '../../lib/tts';
 import { stripThinkTags } from '../../lib/message-text';
 import { toast } from 'sonner';
 import { useAppStore, generateId } from '../../lib/store';
@@ -159,6 +159,7 @@ export function InputArea({ immersive = false }: { immersive?: boolean } = {}) {
   }, [speechError]);
 
   const handleMicClick = useCallback(async () => {
+    unlockVoicePlayback();
     if (speechState === 'recording') {
       try {
         const text = await stopRecording();
@@ -198,6 +199,7 @@ export function InputArea({ immersive = false }: { immersive?: boolean } = {}) {
   }, [resetStream]);
 
   const sendMessage = useCallback(async () => {
+    unlockVoicePlayback();
     const content = input.trim();
     if (!content || streamState.isStreaming) return;
     if (!selectedModel) {
@@ -645,7 +647,10 @@ export function InputArea({ immersive = false }: { immersive?: boolean } = {}) {
             <button type="button" onClick={() => navigate('/settings')} title={t(language, 'navSettings')} aria-label={t(language, 'navSettings')}><Settings2 size={19} /></button>
           </div>
         </header>
-        <div className="jarvis-immersive__stage">
+        <div className="jarvis-immersive__stage" onClick={(event) => {
+          if ((event.target as HTMLElement).closest('button, a, textarea, input, select')) return;
+          if (!isCurrentChatStreaming && speechState !== 'transcribing') void handleMicClick();
+        }}>
           <button
             type="button"
             className="jarvis-immersive__skin-button"
