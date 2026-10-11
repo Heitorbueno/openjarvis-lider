@@ -265,9 +265,10 @@ async def chat_completions(request_body: ChatCompletionRequest, request: Request
                 tier=cr.tier,
                 suggested_max_tokens=suggested,
             )
-            # Bump max_tokens when complexity suggests more than what
-            # the client requested — never reduce below the request value.
-            if suggested > request_body.max_tokens:
+            # Preserve an explicit client cap, particularly in voice mode.
+            # The previous unconditional boost silently replaced 360 tokens
+            # with 2048 on the smallest local Ollama models.
+            if "max_tokens" not in request_body.model_fields_set and suggested > request_body.max_tokens:
                 request_body.max_tokens = suggested
         except Exception:
             logging.getLogger("openjarvis.server").debug(
@@ -624,8 +625,15 @@ def _handle_agent(
     # itself reads self._model throughout the call.
     with _get_agent_model_lock(agent):
         original_model = agent._model
+        has_max_tokens = hasattr(agent, "_max_tokens")
+        original_max_tokens = getattr(agent, "_max_tokens", None)
         if model:
             agent._model = model
+        # Agent runs used the instance default and ignored req.max_tokens,
+        # even though direct-engine calls honored it. Keep this scoped to
+        # the locked request so concurrent users never share a temporary cap.
+        if has_max_tokens and "max_tokens" in req.model_fields_set and 0 < req.max_tokens <= 8192:
+            agent._max_tokens = req.max_tokens
         try:
             if trace_store is not None:
                 from openjarvis.traces.collector import TraceCollector
@@ -636,6 +644,8 @@ def _handle_agent(
                 result = agent.run(input_text, context=ctx)
         finally:
             agent._model = original_model
+            if has_max_tokens:
+                agent._max_tokens = original_max_tokens
 
     usage = UsageInfo(
         prompt_tokens=result.metadata.get("prompt_tokens", 0),
