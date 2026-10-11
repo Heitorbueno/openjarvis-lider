@@ -33,6 +33,17 @@ No PWA privado, selecionar `Configurações > Aparência > Skin / Skill > Orbita
 - latência detalhada e ausência de erros no console;
 - teste em desktop e celular.
 
+## P0.1 — observação após correção do WAV (11/10/2026, 21h53)
+
+- **Sintoma reportado:** a skin mostrou `PREPARANDO VOZ` por muito tempo; pergunta transcrita como `Olá Jarvis, eu quero que me diga a previsão do templo para a manhã em Cuiabá.`; Qwen gerou uma resposta incorreta sobre incapacidade de consultar previsão futura, com **130,5s de geração** (TTFT 23,7s, token budget 2048).
+- **Raiz 1:** parser de clima no frontend exigia o literal `amanhã`. Whisper separou como `para a manhã` e escreveu `templo` em vez de `tempo`. A rota Open-Meteo **já funciona** no backend. Branch `fix/jarvis-weather-voice-latency` reconhece essas variantes somente quando o enunciado possui intenção meteorológica e cidade; fornece a previsão pela API em vez de chamar Ollama.
+- **Raiz 2:** TTS fazia uma única requisição Kokoro para o texto inteiro antes de reproduzir qualquer áudio. A branch segmenta a síntese em blocos ~145 caracteres, prefetch do bloco seguinte durante reprodução e corta a leitura automática muito extensa em ~520 caracteres, comunicando que a versão completa permanece na tela. Transcrição e resposta escrita são preservadas.
+- **Raiz 3:** chat em modo imersivo solicitava `max_tokens` mas o servidor ignorava esse limite no agente `simple` e promovia o valor por complexidade. Alteração em `src/openjarvis/server/routes.py` para respeitar `max_tokens` explicitamente definido, aplicar o valor dentro de lock de agente e restaurar o padrão ao terminar. No PWA imersivo o teto é 360 tokens e a instrução prioriza até três frases.
+- **Validação:** testes adicionais `frontend/src/lib/weather-forecast.test.ts`, `frontend/src/lib/speech-chunks.test.ts`, `frontend/src/lib/tts.test.ts`, `tests/server/test_voice_token_budget_lider.py`; testes Python direcionados passaram (2/2). Revalidar GitHub Actions no SHA final.
+- **Publicação:** script `deploy/lxc/release-voice-latency.sh`, que troca o PWA e aplica um patch cirúrgico em `server/routes.py`, preservando a rota meteorológica em `api_routes.py`. Usa SHA exato, backup de PWA e backend e rollback automático. NÃO declarar publicado antes do usuário enviar resultado de deploy.
+- **Teste real ainda obrigatório:** perguntar por voz a previsão de amanhã para Cuiabá usando a frase problemática exata; medir tempo de transcrição, resposta Open-Meteo e início do áudio, verificar a animação. Para perguntas gerais medir tempo de Qwen e tempo de Kokoro separadamente.
+- **Nota:** a API chave previamente exposta continua precisando de rotação; auditoria npm aponta 13 vulnerabilidades, incluindo 1 crítica.
+
 ## P1 — provedores de IA
 
 - A interface Tauri possui chaves para OpenAI/Anthropic/Google; no **PWA** `saveCloudKey` ainda rejeita (`desktop only`).
