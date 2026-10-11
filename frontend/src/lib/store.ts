@@ -92,9 +92,12 @@ function saveConversations(store: ConversationStore): void {
 }
 
 export type ThemeMode = 'light' | 'dark' | 'system';
+import type { AppLanguage } from './i18n';
 
 interface Settings {
   theme: ThemeMode;
+  language: AppLanguage;
+  uiEffects3d: boolean;
   apiUrl: string;
   // Local server API key (OPENJARVIS_API_KEY). Sent as a Bearer token on
   // /v1 + /api requests so a key-protected `jarvis serve` doesn't 401 the
@@ -113,6 +116,8 @@ interface Settings {
 function loadSettings(): Settings {
   const defaults: Settings = {
     theme: 'system',
+    language: 'pt-BR',
+    uiEffects3d: true,
     apiUrl: '',
     apiKey: '',
     fontSize: 'default',
