@@ -94,12 +94,28 @@ PY
 
 echo "===== CHAVE DE API / SERVICO SYSTEMD ====="
 install -d -m 0700 /etc/openjarvis
-if [[ ! -f /etc/openjarvis/openjarvis.env ]]; then
-  KEY="$(python3 -c 'import secrets; print("oj_sk_"+secrets.token_urlsafe(32))')"
-  printf 'OPENJARVIS_API_KEY=%s\n' "$KEY" > /etc/openjarvis/openjarvis.env
-  chmod 0600 /etc/openjarvis/openjarvis.env
-  unset KEY
-fi
+# Preserve a valid existing key; repair absent or empty values idempotently.
+python3 - <<'PY'
+from pathlib import Path
+import secrets, os
+p = Path("/etc/openjarvis/openjarvis.env")
+lines = p.read_text().splitlines() if p.exists() else []
+keys = [line.partition("=")[2].strip() for line in lines
+        if line.startswith("OPENJARVIS_API_KEY=")]
+if len(keys) > 1:
+    raise SystemExit("Multiple OPENJARVIS_API_KEY values — refusing to overwrite")
+key = keys[0] if keys else ""
+if key and (not key.startswith("oj_sk_") or len(key) < 32):
+    raise SystemExit("Unexpected pre-existing nonempty key — refusing to overwrite")
+if not key:
+    key = "oj_sk_" + secrets.token_urlsafe(32)
+    lines = [line for line in lines if not line.startswith("OPENJARVIS_API_KEY=")]
+    p.write_text("\n".join(lines + ["OPENJARVIS_API_KEY=" + key]) + "\n")
+    print("Generated API key locally (not displayed)")
+else:
+    print("Preserved existing API key (not displayed)")
+os.chmod(p, 0o600)
+PY
 cat >/etc/systemd/system/openjarvis-lider.service <<EOF
 [Unit]
 Description=OpenJarvis Lider - PWA e API locais
