@@ -17,6 +17,7 @@ import type {
 import type { ManagedAgent } from './api';
 import { isEmbedOnlyModel } from './model-capabilities';
 import { serializeToolCallArguments } from './tool-call';
+import type { AppLanguage } from './i18n';
 
 export interface CachedConnector {
   connector_id: string;
@@ -92,7 +93,6 @@ function saveConversations(store: ConversationStore): void {
 }
 
 export type ThemeMode = 'light' | 'dark' | 'system';
-import type { AppLanguage } from './i18n';
 
 interface Settings {
   theme: ThemeMode;
