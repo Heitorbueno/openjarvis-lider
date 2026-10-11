@@ -25,9 +25,13 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       manifest: {
-        name: 'OpenJarvis',
+        name: 'Jarvis Líder',
         short_name: 'Jarvis',
-        description: 'On-device AI assistant',
+        lang: 'pt-BR',
+        id: '/',
+        start_url: '/',
+        scope: '/',
+        description: 'Assistente de IA privado para celular e desktop',
         theme_color: '#161618',
         background_color: '#161618',
         display: 'standalone',
