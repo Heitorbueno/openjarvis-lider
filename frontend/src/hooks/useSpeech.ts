@@ -88,6 +88,14 @@ export function useSpeech(locale: 'pt-BR' | 'en-US' = 'pt-BR') {
     let stream: MediaStream | null = null;
     let context: AudioContext | null = null;
     try {
+      // On Safari/iOS, AudioContext must be unlocked directly by the tap,
+      // BEFORE the asynchronous microphone permission prompt resolves.
+      if (typeof AudioContext !== 'undefined') {
+        try {
+          context = new AudioContext();
+          void context.resume().catch(() => {});
+        } catch { context = null; }
+      }
       stream = await navigator.mediaDevices.getUserMedia({
         audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true },
       });
@@ -98,9 +106,16 @@ export function useSpeech(locale: 'pt-BR' | 'en-US' = 'pt-BR') {
 
       // Prefer PCM for reliable mono WAV upload. Requires an audible browser
       // processing graph, but the output gain is ZERO to prevent local echo.
-      if (typeof AudioContext !== 'undefined') {
-        context = new AudioContext();
-        if (context.createScriptProcessor) {
+      if (context) {
+        // Do not hang the microphone UI if browser autoplay policy holds the
+        // context suspended. Fall back to container recording after 1 second.
+        if (context.state !== 'running') {
+          await Promise.race([
+            context.resume().catch(() => {}),
+            new Promise<void>(resolve => setTimeout(resolve, 1000)),
+          ]);
+        }
+        if (context.state === 'running' && context.createScriptProcessor) {
           const source = context.createMediaStreamSource(stream);
           const processor = context.createScriptProcessor(4096, 1, 1);
           const silentOutput = context.createGain();
@@ -122,7 +137,6 @@ export function useSpeech(locale: 'pt-BR' | 'en-US' = 'pt-BR') {
           source.connect(processor);
           processor.connect(silentOutput);
           silentOutput.connect(context.destination);
-          await context.resume();
           captureRef.current = pcm;
           context = null; // ownership transferred to pcm
         } else {
