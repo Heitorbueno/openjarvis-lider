@@ -66,6 +66,8 @@ runuser -u openjarvis -- env HOME=/home/openjarvis MODEL="$MODEL" bash -c '
   .venv/bin/jarvis config set security.profile personal
   .venv/bin/jarvis config set speech.voice_id pf_dora
   .venv/bin/jarvis config set speech.language pt
+  .venv/bin/jarvis config set speech.device cpu
+  .venv/bin/jarvis config set speech.compute_type int8
   .venv/bin/python - <<"PY"
 from pathlib import Path
 import tomlkit
