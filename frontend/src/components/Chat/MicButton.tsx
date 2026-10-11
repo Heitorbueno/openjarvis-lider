@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { useAppStore } from '../../lib/store';
+import { t } from '../../lib/i18n';
 import type { SpeechState } from '../../hooks/useSpeech';
 
 interface MicButtonProps {
@@ -10,19 +12,20 @@ interface MicButtonProps {
 
 export function MicButton({ state, onClick, disabled, reason }: MicButtonProps) {
   const [showTooltip, setShowTooltip] = useState(false);
+  const language = useAppStore((s) => s.settings.language);
 
   const tooltipText =
     reason === 'not-enabled'
-      ? 'Enable in Settings'
+      ? t(language, 'micEnable')
       : reason === 'no-backend'
-        ? 'Speech backend not configured'
+        ? t(language, 'micMissing')
         : reason === 'streaming'
-          ? 'Wait for response'
+          ? t(language, 'micWait')
           : state === 'recording'
-            ? 'Stop recording'
+            ? t(language, 'micStop')
             : state === 'transcribing'
-              ? 'Transcribing...'
-              : 'Voice input';
+              ? t(language, 'micTranscribing')
+              : t(language, 'micInput');
 
   const isInactive = disabled || state === 'transcribing';
 
