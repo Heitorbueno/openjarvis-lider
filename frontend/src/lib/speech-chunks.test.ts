@@ -3,7 +3,7 @@ import { prepareSpeechChunks, MAX_AUTOSPEECH_CHARACTERS, SPEECH_CHUNK_CHARACTERS
 
 describe('fast speech segmentation', () => {
   it('splits a forecast into small utterances without losing weather facts', () => {
-    const input = 'Previsão de amanhã em Cuiabá: máxima de 34,9 °C e mínima de 23,1 °C. Chance de chuva de 25%. Fonte: Open-Meteo.';
+    const input = 'Previsão de amanhã em Cuiabá: máxima de 34,9 °C e mínima de 23,1 °C. Chance de chuva de 25%. Fonte: Open-Meteo. A temperatura da manhã será diferente da tarde e a previsão pode mudar ao longo do dia.';
     const chunks = prepareSpeechChunks(input);
     expect(chunks.length).toBeGreaterThan(1);
     expect(chunks.every(x => x.length <= SPEECH_CHUNK_CHARACTERS)).toBe(true);
