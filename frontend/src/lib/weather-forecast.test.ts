@@ -16,6 +16,15 @@ describe('weather-specific intent detection', () => {
   it('detects forecast tomorrow before city', () => {
     expect(getTomorrowWeatherCity('Qual a previsão do tempo amanhã em Cuiabá?')).toBe('Cuiabá');
   });
+  it('routes the exact microphone transcription from the Jarvis Líder PWA', () => {
+    expect(getTomorrowWeatherCity('Olá Jarvis, eu quero que me diga a previsão do templo para a manhã em Cuiabá.')).toBe('Cuiabá');
+    expect(getTomorrowWeatherCity('previsão do tempo para a manhã em Cuiabá')).toBe('Cuiabá');
+    expect(getTomorrowWeatherCity('previsão do tempo para amanhã em Cuiabá')).toBe('Cuiabá');
+  });
+  it('does not confuse morning meetings with tomorrow weather', () => {
+    expect(getTomorrowWeatherCity('Marque a reunião para a manhã em Cuiabá')).toBeNull();
+    expect(getTomorrowWeatherCity('previsão de temperatura hoje de manhã em Cuiabá')).toBeNull();
+  });
   it('does not hijack other requests', () => {
     expect(getTomorrowWeatherCity('temperatura de ontem em Cuiabá')).toBeNull();
     expect(getTomorrowWeatherCity('faça um cálculo amanhã')).toBeNull();

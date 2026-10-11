@@ -19,11 +19,15 @@ const normalize = (text: string) => text.normalize('NFD').replace(/[\u0300-\u036
 /** Strict routing for tomorrow's forecast; other questions remain with the chosen AI. */
 export function getTomorrowWeatherCity(question: string): string | null {
   const normal = normalize(question);
-  if (!/\b(amanha|tomorrow)\b/i.test(normal)) return null;
-  if (!/\b(temperatura|previsao|clima|tempo|weather|forecast)\b/i.test(normal)) return null;
-
-  // Examples: 'temperatura em Cuiabá amanhã', 'previsão amanhã em Cuiabá'.
-  const match = question.match(/\b(?:em|in)\s+([\p{L}\p{M} .'-]{2,80}?)(?=\s+amanh[ãa]|\s+tomorrow|[?!.,]|$)/iu);
+  // Whisper sometimes splits "amanhã" into "a manhã" and "tempo" into
+  // "templo" in Brazilian speech. Only tolerate that split in a forecast
+  // question, never route generic morning meetings or reminders to weather.
+  const tomorrow = /\b(amanha|tomorrow)\b/.test(normal)
+    || /\b(?:para|pra)\s+a\s+manha\b/.test(normal);
+  const weatherIntent = /\b(temperatura|previsao|clima|tempo|templo|weather|forecast)\b/.test(normal);
+  if (!tomorrow || !weatherIntent) return null;
+  // "em Cuiabá" may appear before or after "amanhã"/"a manhã".
+  const match = question.match(/\b(?:em|in)\s+([\p{L}\p{M} .'-]{2,80}?)(?=\s+(?:amanh[aã]|tomorrow|para\s+a\s+manh[aã])(?:\s|[?!.;,]|$)|[?!.,;]|$)/iu);
   if (!match) return null;
   const city = match[1].trim().replace(/\s+/g, ' ');
   if (!city || city.length > 80) return null;

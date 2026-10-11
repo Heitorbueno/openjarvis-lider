@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { synthesizeSpeech, fetchTtsHealth } from './api';
+import { prepareSpeechChunks } from './speech-chunks';
 
 export type TtsState = 'idle' | 'loading' | 'speaking';
 
@@ -113,7 +114,7 @@ export function shouldAutoplayFinishedReply(
     && lastMessage.id !== autoSpokenId;
 }
 
-function teardown(): void {
+function releaseClip(): void {
   if (visualFrame !== null) { cancelAnimationFrame(visualFrame); visualFrame = null; }
   if (analyserContext) { void analyserContext.close().catch(() => {}); analyserContext = null; }
   useTtsStore.setState({ audioLevel: 0 });
@@ -132,6 +133,10 @@ function teardown(): void {
     URL.revokeObjectURL(objectUrl);
     objectUrl = null;
   }
+}
+
+function teardown(): void {
+  releaseClip();
   if (controller) {
     controller.abort();
     controller = null;
@@ -164,11 +169,9 @@ export const useTtsStore = create<TtsStore>((set, get) => ({
   markAutoSpoken: (id: string) => set({ autoSpokenId: id }),
 
   speak: async (id: string, text: string) => {
-    const trimmed = text.trim();
-    if (!trimmed) return;
+    const chunks = prepareSpeechChunks(text);
+    if (!chunks.length) return;
 
-    // Bump before teardown so a synthesis still in flight is both aborted and
-    // fenced off by the token, even if the abort loses the race.
     token += 1;
     const mine = token;
     teardown();
@@ -176,45 +179,67 @@ export const useTtsStore = create<TtsStore>((set, get) => ({
 
     const ac = new AbortController();
     controller = ac;
+    type ReadyChunk = { blob: Blob; error?: never } | { blob?: never; error: unknown };
+    // Catch prefetch errors immediately: a user pressing Stop cannot leave an
+    // unhandled promise rejection from a synthesis started in the background.
+    const prefetch = (index: number): Promise<ReadyChunk> =>
+      synthesizeSpeech(chunks[index], { signal: ac.signal })
+        .then(blob => ({ blob }), error => ({ error }));
 
-    try {
-      const blob = await synthesizeSpeech(trimmed, { signal: ac.signal });
+    const runChunk = async (index: number, prepared?: Promise<ReadyChunk>): Promise<void> => {
       if (mine !== token) return;
-
-      const url = URL.createObjectURL(blob);
-      objectUrl = url;
-      const el = new Audio(url);
-      audio = el;
-
-      el.onended = () => {
+      set({ state: 'loading', speakingId: id });
+      try {
+        const ready = await (prepared ?? prefetch(index));
         if (mine !== token) return;
-        teardown();
-        set({ state: 'idle', speakingId: null });
-      };
-      el.onerror = () => {
-        if (mine !== token) return;
-        teardown();
-        set({ state: 'idle', speakingId: null, error: 'Playback failed', errorId: id });
-      };
+        if (ready.error) throw ready.error;
+        if (!ready.blob) throw new Error('O motor de voz não retornou áudio.');
+        const url = URL.createObjectURL(ready.blob);
+        objectUrl = url;
+        const el = new Audio(url);
+        audio = el;
 
-      await el.play();
-      // Only attach optional analysis after native playback has started.
-      // When Web Audio is blocked, audio stays on the native player.
-      if (mine === token) {
+        let nextReady: Promise<ReadyChunk> | undefined;
+        el.onerror = () => {
+          if (mine !== token) return;
+          teardown();
+          set({ state: 'idle', speakingId: null, error: 'Falha na reprodução de áudio', errorId: id });
+        };
+
+        el.onended = () => {
+          if (mine !== token) return;
+          releaseClip();
+          if (index + 1 < chunks.length) {
+            // Use the chunk synthesized while the previous one was playing.
+            void runChunk(index + 1, nextReady);
+          } else {
+            teardown();
+            set({ state: 'idle', speakingId: null });
+          }
+        };
+
+        await el.play();
+        if (mine !== token) return;
         attachAudioVisualizer(el, mine);
         set({ state: 'speaking', speakingId: id });
+        // Keep the next speech request ahead of playback without waiting for
+        // the entire answer. Full chat text is preserved; long audio is
+        // explicitly shortened by prepareSpeechChunks.
+        if (index + 1 < chunks.length) nextReady = prefetch(index + 1);
+      } catch (err) {
+        if (mine !== token) return;
+        if (err instanceof DOMException && err.name === 'AbortError') return;
+        teardown();
+        set({
+          state: 'idle',
+          speakingId: null,
+          error: err instanceof Error ? err.message : 'Falha na síntese de voz',
+          errorId: id,
+        });
       }
-    } catch (err) {
-      if (mine !== token) return;
-      if (err instanceof DOMException && err.name === 'AbortError') return;
-      teardown();
-      set({
-        state: 'idle',
-        speakingId: null,
-        error: err instanceof Error ? err.message : 'Speech synthesis failed',
-        errorId: id,
-      });
-    }
+    };
+
+    await runChunk(0);
   },
 
   stop: () => {

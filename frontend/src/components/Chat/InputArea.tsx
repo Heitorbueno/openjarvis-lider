@@ -234,11 +234,12 @@ export function InputArea({ immersive = false }: { immersive?: boolean } = {}) {
     // same language even when previous conversation turns were multilingual.
     // This is a response-language preference, not a web-search capability.
     const uiLanguage = useAppStore.getState().settings.language;
+    const replyMaxTokens = immersive ? Math.min(maxTokens, 360) : maxTokens;
     const apiMessages = [
       {
         role: 'system',
         content: uiLanguage === 'pt-BR'
-          ? 'Responda sempre em português brasileiro (pt-BR), de maneira natural. Não traduza a pergunta para outro idioma. Se uma resposta exigir informação atual e você não tiver ferramenta ou dados confiáveis, diga que precisa consultá-los; não invente resultados.'
+          ? 'Responda sempre em português brasileiro (pt-BR), de maneira natural. Não traduza a pergunta para outro idioma. Se precisar de informação atual e não houver ferramenta confiável, admita isso sem inventar dados.' + (immersive ? ' Em conversação por voz, responda objetivamente em até três frases, salvo quando o usuário pedir detalhes.' : '')
           : 'Answer in English (en-US). Do not switch languages without user request. Never invent live data when no current source is available.',
       },
       ...dialog,
@@ -427,7 +428,7 @@ export function InputArea({ immersive = false }: { immersive?: boolean } = {}) {
         }
       } else {
       for await (const sseEvent of streamChat(
-        { model: selectedModel, messages: apiMessages, stream: true, temperature, max_tokens: maxTokens },
+        { model: selectedModel, messages: apiMessages, stream: true, temperature, max_tokens: replyMaxTokens },
         controller.signal,
       )) {
         const eventName = sseEvent.event;

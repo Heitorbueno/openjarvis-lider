@@ -91,6 +91,26 @@ describe('shared voice output', () => {
     expect(useTtsStore.getState().speakingId).toBe('m1');
   });
 
+  it('starts audio after a short first chunk and prefetches remaining text', async () => {
+    synth.mockResolvedValue(new Blob(['wav']));
+    const longText = Array.from({ length: 14 }, (_, i) =>
+      `A previsão ${i} indica máxima de 34 graus e mínima de 23 graus.`).join(' ');
+    await useTtsStore.getState().speak('long-reply', longText);
+
+    expect(FakeAudio.instances).toHaveLength(1);
+    expect(FakeAudio.instances[0].playCalls).toBe(1);
+    expect(synth.mock.calls[0][0].length).toBeLessThanOrEqual(145);
+    expect(synth.mock.calls.length).toBeGreaterThan(1); // Next chunk queued.
+    expect(useTtsStore.getState().state).toBe('speaking');
+    const first = FakeAudio.instances[0];
+    first.onended?.();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(FakeAudio.instances).toHaveLength(2);
+    expect(FakeAudio.instances[1].playCalls).toBe(1);
+    useTtsStore.getState().stop();
+    expect(first.paused).toBe(true);
+  });
+
   it('starting a second message stops the first instead of overlapping it', async () => {
     synth.mockResolvedValue(new Blob(['wav']));
 
