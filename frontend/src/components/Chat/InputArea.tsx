@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router';
 import { AssistantSkin } from './AssistantSkin';
 import './immersive.css';
 import { useTtsStore, shouldAutoplayFinishedReply, unlockVoicePlayback } from '../../lib/tts';
+import { speakCompletedReply } from '../../lib/voice-autoplay';
 import { stripThinkTags } from '../../lib/message-text';
 import { toast } from 'sonner';
 import { useAppStore, generateId } from '../../lib/store';
@@ -127,7 +128,7 @@ export function InputArea({ immersive = false }: { immersive?: boolean } = {}) {
     available: speechAvailable,
     startRecording,
     stopRecording,
-  } = useSpeech();
+  } = useSpeech(language);
 
   // Abort in-flight stream when the user switches models mid-generation.
   // This prevents errors from trying to continue a stream with a stale model.
@@ -224,10 +225,23 @@ export function InputArea({ immersive = false }: { immersive?: boolean } = {}) {
 
     // Build API messages before adding assistant placeholder
     const currentMessages = useAppStore.getState().messages;
-    const apiMessages = currentMessages.map((m) => ({
+    const dialog = currentMessages.map((m) => ({
       role: m.role,
       content: m.content,
     }));
+    // STT is fixed to the selected language; keep the model output in that
+    // same language even when previous conversation turns were multilingual.
+    // This is a response-language preference, not a web-search capability.
+    const uiLanguage = useAppStore.getState().settings.language;
+    const apiMessages = [
+      {
+        role: 'system',
+        content: uiLanguage === 'pt-BR'
+          ? 'Responda sempre em português brasileiro (pt-BR), de maneira natural. Não traduza a pergunta para outro idioma. Se uma resposta exigir informação atual e você não tiver ferramenta ou dados confiáveis, diga que precisa consultá-los; não invente resultados.'
+          : 'Answer in English (en-US). Do not switch languages without user request. Never invent live data when no current source is available.',
+      },
+      ...dialog,
+    ];
 
     const assistantMsg: ChatMessage = {
       id: generateId(),
@@ -551,6 +565,10 @@ export function InputArea({ immersive = false }: { immersive?: boolean } = {}) {
         timerRef.current = null;
       }
       resetStream();
+      // Durable completion event. Relying solely on a React falling-edge
+      // misses autoplay in fast streams or batched state transitions.
+      // The helper is idempotent with the existing ChatArea effect.
+      void speakCompletedReply(convId, assistantMsg.id);
       useAppStore.getState().addLogEntry({
         timestamp: Date.now(), level: 'info', category: 'chat',
         message: `Response: ${accumulatedContent.length} chars`,
