@@ -37,14 +37,14 @@ bash deploy/lxc/provision-host.sh
 ```
 
 Padrão: LXC nova com 8 vCPU compartilhadas, limite de 16 GiB RAM,
-modelo `gemma4:e2b-it-q4_K_M` (quantizado para CPU) e nome `openjarvis-lider`.
+modelo `qwen3.5:2b` (quantizado para CPU) e nome `openjarvis-lider`.
 O download dos modelos e dependências pode consumir vários gigabytes.
 Verifique espaço disponível antes de executar; **não apague nenhuma outra LXC**.
 
 Personalizar recursos antes da execução, se necessário:
 
 ```bash
-NAME=openjarvis-lider CPU=8 MEMORY=16GiB MODEL=gemma4:e2b-it-q4_K_M bash deploy/lxc/provision-host.sh
+NAME=openjarvis-lider CPU=8 MEMORY=16GiB MODEL=qwen3.5:2b bash deploy/lxc/provision-host.sh
 ```
 
 O script interrompe se o nome da LXC já existir; nunca recria nem deleta automaticamente.
