@@ -1,4 +1,5 @@
 import { useMemo, type CSSProperties } from 'react';
+import './assistant-skins.css';
 import { useTtsStore } from '../../lib/tts';
 import type { JarvisSkin } from '../../lib/store';
 
@@ -66,6 +67,10 @@ export function AssistantSkin({ skin, compact = false, preview = false }: Props)
   const loading = state === 'loading' && !preview;
   const style = {
     '--voice-level': speaking ? Math.max(0.04, level).toFixed(3) : '0',
+    '--voice-scale': speaking ? (1 + Math.min(level, 1) * .38).toFixed(3) : '1',
+    '--voice-ring-scale': speaking ? (1 + Math.min(level, 1) * .46).toFixed(3) : '1',
+    '--voice-brightness': speaking ? (1 + Math.min(level, 1) * .8).toFixed(3) : '1',
+    '--voice-opacity': speaking ? (.25 + Math.min(level, 1) * .7).toFixed(3) : '.24',
   } as CSSProperties;
 
   return (
