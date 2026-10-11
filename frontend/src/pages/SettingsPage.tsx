@@ -19,7 +19,6 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { useAppStore, type ThemeMode, type JarvisSkin } from '../lib/store';
-import { useNavigate } from 'react-router';
 import { AssistantSkin } from '../components/Chat/AssistantSkin';
 import { useTtsStore } from '../lib/tts';
 import { t } from '../lib/i18n';
@@ -290,7 +289,6 @@ const themeOptions: { value: ThemeMode; label: string; icon: typeof Sun }[] = [
 ];
 
 export function SettingsPage() {
-  const navigate = useNavigate();
   const testVoice = useTtsStore((s) => s.speak);
   const voiceStatus = useTtsStore((s) => s.state);
   const voiceError = useTtsStore((s) => s.error);
@@ -542,7 +540,7 @@ export function SettingsPage() {
                           speechEnabled: true, voiceOutputEnabled: true, voiceAutoplay: true,
                         });
                         showSaved();
-                        navigate('/');
+                        window.location.assign('/');
                       }}
                       aria-pressed={settings.immersiveMode && settings.jarvisSkin === skin.id}
                       className="overflow-hidden rounded-xl text-center transition-all cursor-pointer"
@@ -560,7 +558,7 @@ export function SettingsPage() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => { updateSettings({ immersiveMode: false }); showSaved(); navigate('/'); }}
+                  onClick={() => { updateSettings({ immersiveMode: false }); showSaved(); window.location.assign('/'); }}
                   className="mt-3 px-3 py-2 text-xs rounded-lg cursor-pointer"
                   style={{ border: '1px solid var(--color-border)', color: 'var(--color-text)', background: 'var(--color-bg-secondary)' }}
                 >{settings.language === 'pt-BR' ? 'Usar interface clássica com menus' : 'Use classic interface with sidebars'}</button>
