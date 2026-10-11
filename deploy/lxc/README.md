@@ -199,3 +199,45 @@ lxc exec jarvis -- bash
 ```
 
 O acesso permanece privado à Tailnet; **não** usar Funnel.
+
+
+## Configuração de segurança, idioma e interface (branch pt-BR/3D)
+
+O frontend registra o idioma em `openjarvis-settings` (navegador).
+Em **Configurações → Idioma**, escolha `Português (Brasil)` ou `English`.
+Em **Efeitos visuais 3D**, habilite ou desabilite o orbe de perspectiva da tela inicial.
+É uma animação CSS opcional e leve, não um engine 3D WebGL.
+Essa etapa traduz os controles principais (navegação, início do chat, entrada por voz e
+as seções principais de Configurações); não promete tradução integral de todas as
+telas secundárias do upstream.
+
+Para conferir a proteção sem revelar segredos:
+
+```bash
+lxc exec jarvis -- bash -lc '
+python3 - <<'"'"'PY'"'"'
+from pathlib import Path
+p=Path("/etc/openjarvis/openjarvis.env")
+v=next((x.partition("=")[2].strip() for x in p.read_text().splitlines()
+        if x.startswith("OPENJARVIS_API_KEY=")), "")
+print("chave_presente:", bool(v), "tamanho:",len(v))
+PY
+curl -s -o /dev/null -w "HTTP sem chave: %{http_code}\n" \
+  http://127.0.0.1:8000/v1/models
+'
+```
+
+Se o arquivo tiver chave ausente/vazia, rode `deploy/lxc/repair-api-key.sh`
+**dentro** do guest. Ele preserva valores existentes válidos, cria segredo só
+quando necessário, reinicia o serviço e verifica 401/200. Nunca publique a chave.
+Depois cadastre-a em **Configurações → Conexão → Chave da API** do PWA,
+campo `OPENJARVIS_API_KEY`. Não confundir com chaves OpenAI, Anthropic etc.
+
+Se os logs indicarem `No module named 'openjarvis_rust'`, execute
+`deploy/lxc/install-rust-extension.sh` dentro do guest: esse script instala a
+extensão do grupo `desktop-native` e verifica o import antes do restart.
+
+Antes de deployar mudanças do frontend: `git status` e snapshot do build
+estático anterior; evitar qualquer mudança em `~/.openjarvis`, Ollama ou chaves.
+O merge deve acontecer somente depois de um `npm ci && npm run build`
+bem-sucedido e smoke test no PWA (mobile/desktop) após deploy.
