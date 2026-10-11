@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { ConversationList } from './ConversationList';
 import { useAppStore } from '../../lib/store';
+import { t } from '../../lib/i18n';
 
 export function Sidebar() {
   const navigate = useNavigate();
@@ -53,13 +54,13 @@ export function Sidebar() {
   };
 
   const navItems = [
-    { path: '/', icon: MessageSquare, label: 'Chat' },
-    { path: '/dashboard', icon: BarChart3, label: 'Dashboard' },
-    { path: '/data-sources', icon: Database, label: 'Data Sources' },
-    { path: '/agents', icon: Bot, label: 'Agents' },
-    { path: '/logs', icon: ScrollText, label: 'Logs' },
-    { path: '/settings', icon: Settings, label: 'Settings' },
-    { path: '/get-started', icon: Rocket, label: 'Get Started' },
+    { path: '/', icon: MessageSquare, label: t(settings.language, 'navChat') },
+    { path: '/dashboard', icon: BarChart3, label: t(settings.language, 'navDashboard') },
+    { path: '/data-sources', icon: Database, label: t(settings.language, 'navSources') },
+    { path: '/agents', icon: Bot, label: t(settings.language, 'navAgents') },
+    { path: '/logs', icon: ScrollText, label: t(settings.language, 'navLogs') },
+    { path: '/settings', icon: Settings, label: t(settings.language, 'navSettings') },
+    { path: '/get-started', icon: Rocket, label: t(settings.language, 'navStart') },
   ];
 
   return (
@@ -109,7 +110,7 @@ export function Sidebar() {
                 style={{ color: 'var(--color-text-secondary)' }}
                 onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--color-bg-tertiary)')}
                 onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-                title={`Theme: ${settings.theme} (click for ${nextTheme})`}
+                title={settings.language === 'pt-BR' ? `Tema: ${settings.theme} (mudar para ${nextTheme})` : `Theme: ${settings.theme} (click for ${nextTheme})`}
               >
                 <ThemeIcon size={16} />
               </button>
@@ -119,7 +120,7 @@ export function Sidebar() {
                 style={{ color: 'var(--color-text-secondary)' }}
                 onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--color-bg-tertiary)')}
                 onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-                title="New chat"
+                title={t(settings.language, "newChat")}
               >
                 <Plus size={18} />
               </button>
@@ -150,11 +151,11 @@ export function Sidebar() {
               >
                 {deepResearch
                   ? 'Deep Research'
-                  : selectedModel || serverInfo?.model || 'Select model'}
+                  : selectedModel || serverInfo?.model || t(settings.language, 'selectModel')}
               </span>
               {modelLoading && (
                 <span className="text-[10px] block text-left" style={{ color: 'var(--color-accent)' }}>
-                  Loading model...
+                  {t(settings.language, 'loadingModel')}
                 </span>
               )}
             </div>
@@ -177,7 +178,7 @@ export function Sidebar() {
               <Search size={14} style={{ color: 'var(--color-text-tertiary)' }} />
               <input
                 type="text"
-                placeholder="Search chats..."
+                placeholder={t(settings.language, "searchChats")}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="flex-1 bg-transparent outline-none text-sm"
